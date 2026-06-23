@@ -1,361 +1,1484 @@
 <!DOCTYPE html>
-<html lang="en">
+<html class="dark" lang="en">
 <head>
-<meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
-<meta name="theme-color" content="#f8f7f4">
-<title>Global Market Correlation Simulator</title>
-<style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-
-  :root {
-    --bg: #f8f7f4;
-    --card: #ffffff;
-    --border: rgba(0,0,0,0.10);
-    --text: #1a1a18;
-    --muted: #5F5E5A;
-    --hint: #888780;
-    --surface: #f1efe8;
-    --radius: 14px;
-    --radius-sm: 8px;
-  }
-
-  html { -webkit-text-size-adjust: 100%; text-size-adjust: 100%; }
-
-  body {
-    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Noto Sans", sans-serif;
-    background: var(--bg);
-    color: var(--text);
-    min-height: 100vh;
-    min-height: 100dvh;
-    padding: max(16px, env(safe-area-inset-top)) max(16px, env(safe-area-inset-right)) max(32px, env(safe-area-inset-bottom)) max(16px, env(safe-area-inset-left));
-    -webkit-tap-highlight-color: transparent;
-  }
-
-  h1 { font-size: clamp(17px, 4.5vw, 22px); font-weight: 500; margin-bottom: 4px; line-height: 1.3; }
-  .subtitle { font-size: clamp(11px, 3vw, 13px); color: var(--muted); margin-bottom: 18px; line-height: 1.5; }
-  .section-title { font-size: 11px; color: var(--hint); font-weight: 600; margin-bottom: 14px; letter-spacing: 0.06em; text-transform: uppercase; }
-
-  .card { background: var(--card); border: 0.5px solid var(--border); border-radius: var(--radius); padding: clamp(14px, 4vw, 20px); margin-bottom: 12px; }
-
-  /* Market rows: stack on phones, single line on tablets */
-  .market-row {
-    display: grid;
-    grid-template-areas: "info val" "slider corr";
-    grid-template-columns: 1fr auto;
-    gap: 3px 8px;
-    margin-bottom: 18px;
-    align-items: center;
-  }
-  .mkt-info    { grid-area: info;   display: flex; align-items: baseline; gap: 6px; flex-wrap: wrap; }
-  .mkt-val     { grid-area: val;    font-size: 14px; font-weight: 500; text-align: right; white-space: nowrap; }
-  .slider-wrap { grid-area: slider; }
-  .corr-pill   { grid-area: corr;   font-size: 10px; font-weight: 600; padding: 2px 6px; border-radius: 4px; text-align: center; white-space: nowrap; }
-  .mkt-label   { font-size: clamp(13px, 3.5vw, 14px); font-weight: 500; }
-  .mkt-sub     { font-size: 11px; color: var(--hint); }
-
-  @media (min-width: 520px) {
-    .market-row {
-      grid-template-areas: "info slider val corr";
-      grid-template-columns: 130px 1fr 56px 80px;
-      grid-template-rows: auto;
-      gap: 10px;
-      align-items: center;
-    }
-    .mkt-info { flex-direction: column; gap: 1px; }
-    .corr-pill { font-size: 11px; }
-  }
-
-  /* Touch-friendly range sliders */
-  input[type="range"] {
-    -webkit-appearance: none; appearance: none;
-    width: 100%; height: 44px;
-    background: transparent; cursor: pointer;
-    padding: 0; margin: 0;
-    touch-action: pan-y;
-  }
-  input[type="range"]::-webkit-slider-runnable-track { height: 5px; border-radius: 3px; background: var(--surface); }
-  input[type="range"]::-webkit-slider-thumb {
-    -webkit-appearance: none;
-    width: 26px; height: 26px; border-radius: 50%;
-    background: #1D9E75; margin-top: -10.5px;
-    box-shadow: 0 1px 5px rgba(0,0,0,0.20);
-  }
-  input[type="range"]::-moz-range-track { height: 5px; border-radius: 3px; background: var(--surface); }
-  input[type="range"]::-moz-range-thumb { width: 26px; height: 26px; border-radius: 50%; background: #1D9E75; border: none; box-shadow: 0 1px 5px rgba(0,0,0,0.20); }
-
-  .divider { border: none; border-top: 0.5px solid var(--border); margin: 16px 0; }
-
-  .macro-grid { display: grid; grid-template-columns: 1fr; gap: 14px; }
-  @media (min-width: 460px) { .macro-grid { grid-template-columns: 1fr 1fr; } }
-  .macro-label { font-size: 12px; color: var(--muted); margin-bottom: 2px; line-height: 1.5; }
-  .macro-label strong { color: var(--text); }
-
-  .verdict-box { border-radius: var(--radius-sm); padding: 14px 16px; font-size: clamp(13px, 3.5vw, 14px); font-weight: 500; margin-bottom: 12px; line-height: 1.4; transition: background 0.3s, color 0.3s; }
-
-  .metric-grid { display: grid; grid-template-columns: repeat(3, minmax(0,1fr)); gap: 8px; margin-bottom: 12px; }
-  .metric { background: var(--surface); border-radius: var(--radius-sm); padding: 10px 12px; }
-  .metric-label { font-size: 11px; color: var(--hint); margin-bottom: 4px; }
-  .metric-value { font-size: clamp(16px, 4.5vw, 22px); font-weight: 500; line-height: 1.2; transition: color 0.3s; }
-
-  .contrib-row { display: flex; align-items: center; gap: 8px; margin-bottom: 10px; }
-  .contrib-lbl { font-size: 12px; color: var(--muted); width: clamp(64px, 18vw, 80px); flex-shrink: 0; }
-  .bar-track { height: 7px; background: var(--surface); border-radius: 4px; flex: 1; overflow: hidden; }
-  .bar-fill { height: 7px; border-radius: 4px; transition: width 0.25s; }
-  .contrib-val { font-size: 12px; font-weight: 500; min-width: 52px; text-align: right; white-space: nowrap; }
-
-  .radar-wrap { position: relative; width: 100%; height: clamp(200px, 55vw, 290px); }
-
-  .btn-group { display: flex; gap: 8px; flex-wrap: wrap; }
-  .btn {
-    padding: 10px clamp(10px, 3vw, 16px);
-    font-size: clamp(12px, 3vw, 13px);
-    border: 0.5px solid var(--border);
-    border-radius: var(--radius-sm);
-    background: var(--card);
-    cursor: pointer; color: var(--text);
-    transition: background 0.15s;
-    min-height: 44px; min-width: 44px;
-    touch-action: manipulation;
-    -webkit-tap-highlight-color: transparent;
-  }
-  .btn:active { background: var(--surface); }
-
-  .foot-note { font-size: 11px; color: var(--hint); margin-top: 16px; line-height: 1.7; padding-bottom: 8px; }
-</style>
-</head>
-<body>
-
-<h1>Global market correlation simulator</h1>
-<p class="subtitle">Drag overnight market moves · see Nifty 50 projected opening gap · correlations from 2022–2024 research</p>
-
-<div class="card">
-  <div class="section-title">Overnight inputs</div>
-
-  <div class="market-row">
-    <div class="mkt-info"><span class="mkt-label">S&amp;P 500</span><span class="mkt-sub">US · 1:30 AM IST close</span></div>
-    <div class="mkt-val" id="sp500-v" style="color:#185FA5">0.0%</div>
-    <div class="slider-wrap"><input type="range" id="sp500" min="-4" max="4" step="0.1" value="0" oninput="update()"></div>
-    <div class="corr-pill" style="background:#E6F1FB;color:#0C447C;">0.45</div>
-  </div>
-
-  <div class="market-row">
-    <div class="mkt-info"><span class="mkt-label">Nasdaq</span><span class="mkt-sub">US tech · IT proxy</span></div>
-    <div class="mkt-val" id="nasdaq-v" style="color:#185FA5">0.0%</div>
-    <div class="slider-wrap"><input type="range" id="nasdaq" min="-4" max="4" step="0.1" value="0" oninput="update()"></div>
-    <div class="corr-pill" style="background:#E6F1FB;color:#0C447C;">0.55</div>
-  </div>
-
-  <div class="market-row">
-    <div class="mkt-info"><span class="mkt-label">Hang Seng</span><span class="mkt-sub">HK · strongest lag</span></div>
-    <div class="mkt-val" id="hsi-v" style="color:#0F6E56">0.0%</div>
-    <div class="slider-wrap"><input type="range" id="hsi" min="-4" max="4" step="0.1" value="0" oninput="update()"></div>
-    <div class="corr-pill" style="background:#E1F5EE;color:#085041;">0.65</div>
-  </div>
-
-  <div class="market-row">
-    <div class="mkt-info"><span class="mkt-label">Nikkei 225</span><span class="mkt-sub">Tokyo · 6:30 AM IST</span></div>
-    <div class="mkt-val" id="nikkei-v" style="color:#854F0B">0.0%</div>
-    <div class="slider-wrap"><input type="range" id="nikkei" min="-4" max="4" step="0.1" value="0" oninput="update()"></div>
-    <div class="corr-pill" style="background:#FAEEDA;color:#633806;">0.65</div>
-  </div>
-
-  <div class="market-row">
-    <div class="mkt-info"><span class="mkt-label">ASX 200</span><span class="mkt-sub">Sydney · 5:15 AM IST</span></div>
-    <div class="mkt-val" id="asx-v" style="color:#854F0B">0.0%</div>
-    <div class="slider-wrap"><input type="range" id="asx" min="-4" max="4" step="0.1" value="0" oninput="update()"></div>
-    <div class="corr-pill" style="background:#FAEEDA;color:#633806;">0.55</div>
-  </div>
-
-  <hr class="divider">
-  <div class="section-title">Macro amplifiers</div>
-  <div class="macro-grid">
-    <div>
-      <div class="macro-label">Dollar Index (DXY)<br><strong id="dxy-v">neutral</strong></div>
-      <input type="range" id="dxy" min="-2" max="2" step="0.5" value="0" oninput="update()">
-    </div>
-    <div>
-      <div class="macro-label">US 10yr yield<br><strong id="yield-v">neutral</strong></div>
-      <input type="range" id="yield10" min="-2" max="2" step="0.5" value="0" oninput="update()">
-    </div>
-  </div>
-</div>
-
-<div id="verdict-box" class="verdict-box" style="background:#E1F5EE;color:#085041;">
-  Nifty projected: flat open (±0.3%)
-</div>
-
-<div class="metric-grid">
-  <div class="metric">
-    <div class="metric-label">Projected gap</div>
-    <div class="metric-value" id="gap-val">+0.00%</div>
-  </div>
-  <div class="metric">
-    <div class="metric-label">Strength</div>
-    <div class="metric-value" id="sig-val">—</div>
-  </div>
-  <div class="metric">
-    <div class="metric-label">FII bias</div>
-    <div class="metric-value" id="fii-val">Neutral</div>
-  </div>
-</div>
-
-<div class="card">
-  <div class="section-title">Weighted contribution to Nifty move</div>
-  <div id="contrib-bars"></div>
-</div>
-
-<div class="card">
-  <div class="section-title">Market influence radar</div>
-  <div class="radar-wrap">
-    <canvas id="radarChart" role="img" aria-label="Radar chart showing each market's correlation-weighted influence on Nifty">Radar chart of market influence on Nifty 50</canvas>
-  </div>
-</div>
-
-<div class="card">
-  <div class="section-title">Quick scenarios</div>
-  <div class="btn-group">
-    <button class="btn" onclick="setScenario('bull')">Bull ↗</button>
-    <button class="btn" onclick="setScenario('bear')">Bear ↘</button>
-    <button class="btn" onclick="setScenario('us_crash')">US crash, Asia holds</button>
-    <button class="btn" onclick="setScenario('fed_hike')">Fed hawkish + strong $</button>
-    <button class="btn" onclick="setScenario('reset')">Reset</button>
-  </div>
-</div>
-
-<p class="foot-note">
-  Correlation weights: Hang Seng 28% · Nasdaq 22% · S&amp;P 500 20% · Nikkei 18% · ASX 12%<br>
-  Macro overlay: DXY ±0.15 per unit · 10yr yield ±0.12 per unit<br>
-  Source: JETIR / BusinessToday research 2022–2024 · Educational use only — not financial advice
-</p>
-
-<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
-<script>
-const WEIGHTS = {sp500:0.20,nasdaq:0.22,hsi:0.28,nikkei:0.18,asx:0.12};
-const CORRS   = {sp500:0.45,nasdaq:0.55,hsi:0.65,nikkei:0.65,asx:0.55};
-const COLORS  = {sp500:'#185FA5',nasdaq:'#378ADD',hsi:'#0F6E56',nikkei:'#854F0B',asx:'#BA7517'};
-const LABELS  = {sp500:'S&P 500',nasdaq:'Nasdaq',hsi:'Hang Seng',nikkei:'Nikkei',asx:'ASX 200'};
-
-const DXY_LBL = {'-2':'strong $ (bearish)','-1.5':'firm $','-1':'mild $ strength','-0.5':'slight $ up','0':'neutral','0.5':'slight $ weak','1':'mild $ weakness','1.5':'soft $','2':'weak $ (bullish)'};
-const YLD_LBL = {'-2':'falling sharply','-1.5':'easing','-1':'down','-0.5':'slight ease','0':'neutral','0.5':'slight rise','1':'rising','1.5':'firm','2':'spike (bearish)'};
-
-let chart = null;
-const $ = id => document.getElementById(id);
-const flt = id => parseFloat($(id).value);
-const fmt = x => (x >= 0 ? '+' : '') + x.toFixed(1) + '%';
-
-function update() {
-  const v = {sp500:flt('sp500'),nasdaq:flt('nasdaq'),hsi:flt('hsi'),nikkei:flt('nikkei'),asx:flt('asx')};
-  const dxy = flt('dxy'), yld = flt('yield10');
-
-  $('sp500-v').textContent  = fmt(v.sp500);
-  $('nasdaq-v').textContent = fmt(v.nasdaq);
-  $('hsi-v').textContent    = fmt(v.hsi);
-  $('nikkei-v').textContent = fmt(v.nikkei);
-  $('asx-v').textContent    = fmt(v.asx);
-  $('dxy-v').textContent    = DXY_LBL[dxy.toFixed(1)] ?? (dxy > 0 ? 'bearish $' : 'bullish $');
-  $('yield-v').textContent  = YLD_LBL[yld.toFixed(1)] ?? (yld > 0 ? 'rising' : 'falling');
-
-  let raw = 0;
-  const contribs = {};
-  for (const k in WEIGHTS) { contribs[k] = v[k] * WEIGHTS[k] * CORRS[k]; raw += contribs[k]; }
-  const projected = raw + (-dxy * 0.15) + (-yld * 0.12);
-
-  const gapEl = $('gap-val');
-  gapEl.textContent = (projected >= 0 ? '+' : '') + projected.toFixed(2) + '%';
-  gapEl.style.color = projected > 0.3 ? '#0F6E56' : projected < -0.3 ? '#A32D2D' : '#1a1a18';
-
-  const absP = Math.abs(projected);
-  $('sig-val').textContent = absP < 0.2 ? 'Weak' : absP < 0.5 ? 'Moderate' : absP < 1.2 ? 'Strong' : 'Very strong';
-
-  const fiiEl = $('fii-val');
-  const fii = projected > 0.4 ? 'Buy' : projected < -0.4 ? 'Sell' : 'Neutral';
-  fiiEl.textContent = fii;
-  fiiEl.style.color = fii === 'Buy' ? '#0F6E56' : fii === 'Sell' ? '#A32D2D' : '#1a1a18';
-
-  const vb = $('verdict-box');
-  const verdicts = [
-    [ 0.8,  '#E1F5EE','#085041','Strong gap-up likely at 9:15 AM — bullish global setup'],
-    [ 0.3,  '#EAF3DE','#27500A','Mild gap-up expected — positive overnight cues'],
-    [-0.3,  '#f1efe8','#5F5E5A','Flat open likely — mixed or neutral global signals'],
-    [-0.8,  '#FCEBEB','#791F1F','Mild gap-down expected — weak global cues'],
-    [-Infinity,'#F7C1C1','#501313','Strong gap-down likely — risk-off globally']
-  ];
-  for (const [thr, bg, col, msg] of verdicts) {
-    if (projected > thr) { vb.style.background = bg; vb.style.color = col; vb.textContent = msg; break; }
-  }
-
-  const bars = $('contrib-bars');
-  bars.innerHTML = '';
-  const maxC = Math.max(...Object.values(contribs).map(Math.abs), 0.001);
-  for (const k in contribs) {
-    const pct = (Math.abs(contribs[k]) / maxC * 100).toFixed(0);
-    const pos = contribs[k] >= 0;
-    const row = document.createElement('div');
-    row.className = 'contrib-row';
-    row.innerHTML = `
-      <span class="contrib-lbl">${LABELS[k]}</span>
-      <div class="bar-track"><div class="bar-fill" style="width:${pct}%;background:${pos ? COLORS[k] : '#E24B4A'};opacity:0.85"></div></div>
-      <span class="contrib-val" style="color:${pos ? COLORS[k] : '#A32D2D'}">${contribs[k]>=0?'+':''}${contribs[k].toFixed(3)}%</span>
-    `;
-    bars.appendChild(row);
-  }
-
-  if (chart) {
-    chart.data.datasets[0].data = Object.keys(CORRS).map(k => Math.abs(v[k]) * CORRS[k]);
-    chart.data.datasets[0].backgroundColor = projected >= 0 ? 'rgba(29,158,117,0.18)' : 'rgba(226,75,74,0.18)';
-    chart.data.datasets[0].borderColor = projected >= 0 ? '#1D9E75' : '#E24B4A';
-    chart.update('none');
-  }
-}
-
-function setScenario(name) {
-  const sets = {
-    bull:     {sp500:1.5, nasdaq:2.0, hsi:1.2, nikkei:1.0, asx:0.8, dxy:-1,  yield10:-0.5},
-    bear:     {sp500:-2,  nasdaq:-2.5,hsi:-1.8,nikkei:-1.5,asx:-1.2,dxy:1,   yield10:1},
-    us_crash: {sp500:-3,  nasdaq:-3.5,hsi:-0.5,nikkei:-0.8,asx:-0.4,dxy:1.5, yield10:0},
-    fed_hike: {sp500:-1,  nasdaq:-1.5,hsi:-0.8,nikkei:-0.5,asx:-0.3,dxy:2,   yield10:2},
-    reset:    {sp500:0,   nasdaq:0,   hsi:0,   nikkei:0,   asx:0,   dxy:0,   yield10:0}
-  };
-  const s = sets[name];
-  ['sp500','nasdaq','hsi','nikkei','asx','dxy','yield10'].forEach(k => $(k).value = s[k]);
-  update();
-}
-
-window.addEventListener('load', () => {
-  const sm = window.innerWidth < 480;
-  chart = new Chart($('radarChart'), {
-    type: 'radar',
-    data: {
-      labels: ['S&P 500','Nasdaq','Hang Seng','Nikkei','ASX 200'],
-      datasets: [{
-        label: 'Influence on Nifty',
-        data: [0,0,0,0,0],
-        backgroundColor: 'rgba(29,158,117,0.18)',
-        borderColor: '#1D9E75',
-        borderWidth: 1.5,
-        pointBackgroundColor: '#1D9E75',
-        pointRadius: sm ? 5 : 3,
-        pointHoverRadius: 7
-      }]
-    },
-    options: {
-      responsive: true,
-      maintainAspectRatio: false,
-      plugins: { legend: { display: false } },
-      scales: {
-        r: {
-          min: 0, max: 3,
-          ticks: { stepSize: 1, color: '#888780', font: { size: sm ? 10 : 11 }, backdropColor: 'transparent' },
-          grid: { color: 'rgba(0,0,0,0.07)' },
-          angleLines: { color: 'rgba(0,0,0,0.07)' },
-          pointLabels: { color: '#5F5E5A', font: { size: sm ? 11 : 12 } }
-        }
+    <meta charset="utf-8"/>
+    <meta content="width=device-width, initial-scale=1.0" name="viewport"/>
+    <title>EPC Intelligence Core - Unified Control Command</title>
+    <script src="https://cdn.tailwindcss.com?plugins=forms,container-queries"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&amp;family=JetBrains+Mono:wght@400;500;700&amp;display=swap" rel="stylesheet"/>
+    <link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/>
+    
+    <!-- Tailwind Configuration -->
+    <script id="tailwind-config">
+      tailwind.config = {
+        darkMode: "class",
+        theme: {
+          extend: {
+            "colors": {
+                "background": "#0e1513",
+                "surface": "#0e1513",
+                "surface-bright": "#333b39",
+                "surface-container-lowest": "#09100e",
+                "surface-container-low": "#161d1b",
+                "surface-container": "#1a211f",
+                "surface-container-high": "#242b2a",
+                "surface-container-highest": "#2f3634",
+                "on-surface": "#dde4e1",
+                "on-surface-variant": "#bacac5",
+                "outline": "#859490",
+                "outline-variant": "#3c4a46",
+                "primary": "#57f1db",
+                "on-primary": "#003731",
+                "primary-container": "#2dd4bf",
+                "on-primary-container": "#00574d",
+                "secondary": "#4edea3",
+                "on-secondary": "#003824",
+                "secondary-container": "#00a572",
+                "on-secondary-container": "#00311f",
+                "tertiary": "#d7d6ff",
+                "on-tertiary": "#1000a9",
+                "tertiary-container": "#b6b8ff",
+                "on-tertiary-container": "#3636c4",
+                "error": "#ffb4ab",
+                "on-error": "#690005",
+                "error-container": "#93000a",
+                "on-error-container": "#ffdad6"
+            },
+            "borderRadius": {
+                "DEFAULT": "0.125rem",
+                "lg": "0.25rem",
+                "xl": "0.5rem",
+                "full": "0.75rem"
+            },
+            "spacing": {
+                "container-margin": "24px",
+                "gutter": "16px",
+                "sidebar-width": "280px",
+                "section-gap": "48px",
+                "base": "4px"
+            },
+            "fontFamily": {
+                "label-md": ["JetBrains Mono"],
+                "headline-lg": ["Inter"],
+                "display": ["Inter"],
+                "body-lg": ["Inter"],
+                "body-md": ["Inter"],
+                "label-sm": ["JetBrains Mono"],
+                "headline-lg-mobile": ["Inter"],
+                "headline-md": ["Inter"],
+                "body-sm": ["Inter"]
+            }
+          },
+        },
       }
+    </script>
+    <style>
+        body {
+            background-color: #0e1513;
+            color: #dde4e1;
+            font-family: 'Inter', sans-serif;
+            -webkit-tap-highlight-color: transparent;
+        }
+        .material-symbols-outlined {
+            font-variation-settings: 'FILL' 0, 'wght' 400, 'GRAD' 0, 'opsz' 24;
+            display: inline-block;
+            line-height: 1;
+        }
+        .glass-card {
+            background: rgba(30, 41, 59, 0.4);
+            backdrop-filter: blur(8px);
+            border: 1px solid #3c4a46;
+        }
+        .sidebar-transition {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .active-tab-indicator {
+            box-shadow: 0 0 15px rgba(87, 241, 219, 0.3);
+        }
+        /* Custom scrollbar */
+        ::-webkit-scrollbar { width: 6px; height: 6px; }
+        ::-webkit-scrollbar-track { background: #0e1513; }
+        ::-webkit-scrollbar-thumb { background: #3c4a46; border-radius: 10px; }
+        ::-webkit-scrollbar-thumb:hover { background: #859490; }
+        
+        .scanline {
+            background: linear-gradient(to bottom, rgba(14, 21, 19, 0) 50%, rgba(0, 0, 0, 0.1) 50%);
+            background-size: 100% 4px;
+            pointer-events: none;
+        }
+    </style>
+</head>
+<body class="overflow-x-hidden">
+
+<!-- Top Navigation Bar -->
+<header class="fixed top-0 w-full z-40 bg-background border-b border-outline-variant flex justify-between items-center h-16 px-container-margin">
+    <div class="flex items-center gap-4">
+        <button class="text-primary p-1 rounded hover:bg-surface-container-highest transition-colors lg:hidden" onclick="toggleSidebar()">
+            <span class="material-symbols-outlined">menu</span>
+        </button>
+        <h1 class="font-headline-md text-headline-md font-bold text-primary flex items-center gap-2">
+            <span class="material-symbols-outlined text-2xl">memory</span>
+            EPC Intelligence Core
+        </h1>
+    </div>
+    
+    <div class="flex items-center gap-4">
+        <!-- Project Selector Dropdown -->
+        <div class="relative inline-block">
+            <select id="project-selector" onchange="switchProject(this.value)" class="bg-surface-container-high border border-outline-variant text-on-surface rounded px-4 py-1.5 font-body-md focus:border-primary focus:ring-1 focus:ring-primary outline-none transition-all cursor-pointer">
+                <option value="">Loading Projects...</option>
+            </select>
+        </div>
+        
+        <button onclick="toggleModal('project-modal')" class="bg-primary/10 border border-primary/30 text-primary font-bold px-3 py-1.5 rounded hover:bg-primary/20 transition-all text-sm flex items-center gap-1">
+            <span class="material-symbols-outlined text-sm">add</span> New
+        </button>
+        
+        <div class="hidden md:flex flex-col items-end text-right">
+            <span class="font-label-sm text-[11px] text-primary">System Online</span>
+            <span class="font-label-sm text-[10px] text-on-surface-variant" id="active-project-name">No active project</span>
+        </div>
+    </div>
+</header>
+
+<!-- Navigation Drawer (Sidebar) -->
+<nav class="fixed left-0 top-0 h-full w-sidebar-width z-50 bg-surface-container border-r border-outline-variant sidebar-transition -translate-x-full lg:translate-x-0" id="sidebar">
+    <div class="flex flex-col h-full py-6">
+        <!-- Sidebar Header -->
+        <div class="px-6 mb-8 flex items-center justify-between">
+            <div class="flex items-center gap-3">
+                <div class="w-10 h-10 bg-primary-container/10 rounded flex items-center justify-center border border-primary/20">
+                    <span class="material-symbols-outlined text-primary" style="font-variation-settings: 'FILL' 1;">architecture</span>
+                </div>
+                <div>
+                    <h2 class="font-headline-md text-headline-md text-primary leading-tight font-bold">Control Deck</h2>
+                    <p class="font-label-sm text-[10px] text-on-surface-variant">ENGINE DEPLOY v2.4</p>
+                </div>
+            </div>
+            <button class="lg:hidden text-on-surface-variant" onclick="toggleSidebar()">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+
+        <!-- Navigation Links -->
+        <div class="flex-grow space-y-1 px-2" id="sidebar-nav">
+            <a class="nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-all group bg-secondary-container text-on-secondary-container border-l-2 border-primary active-tab-indicator" href="javascript:void(0)" onclick="switchTab('dashboard', this)">
+                <span class="material-symbols-outlined" style="font-variation-settings: 'FILL' 1;">dashboard</span>
+                <span class="font-label-md text-label-md">Dashboard</span>
+            </a>
+            <a class="nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-all group text-on-surface-variant hover:bg-surface-container-highest" href="javascript:void(0)" onclick="switchTab('documents', this)">
+                <span class="material-symbols-outlined group-hover:text-primary">description</span>
+                <span class="font-label-md text-label-md">Documents</span>
+            </a>
+            <a class="nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-all group text-on-surface-variant hover:bg-surface-container-highest" href="javascript:void(0)" onclick="switchTab('compliance', this)">
+                <span class="material-symbols-outlined group-hover:text-primary">verified</span>
+                <span class="font-label-md text-label-md">Spec Compliance</span>
+            </a>
+            <a class="nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-all group text-on-surface-variant hover:bg-surface-container-highest" href="javascript:void(0)" onclick="switchTab('copilot', this)">
+                <span class="material-symbols-outlined group-hover:text-primary">smart_toy</span>
+                <span class="font-label-md text-label-md">Commissioning Copilot</span>
+            </a>
+            <a class="nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-all group text-on-surface-variant hover:bg-surface-container-highest" href="javascript:void(0)" onclick="switchTab('rfi', this)">
+                <span class="material-symbols-outlined group-hover:text-primary">forum</span>
+                <span class="font-label-md text-label-md">RFI Knowledge Hub</span>
+            </a>
+            <a class="nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-all group text-on-surface-variant hover:bg-surface-container-highest" href="javascript:void(0)" onclick="switchTab('schedule', this)">
+                <span class="material-symbols-outlined group-hover:text-primary">warning</span>
+                <span class="font-label-md text-label-md">Schedule Risks</span>
+            </a>
+        </div>
+        
+        <!-- Sidebar Footer -->
+        <div class="px-6 pt-4 border-t border-outline-variant text-[11px] text-on-surface-variant">
+            <span>Powered by Groq Llama-3.3</span>
+        </div>
+    </div>
+</nav>
+
+<!-- Overlay for mobile sidebar -->
+<div class="fixed inset-0 bg-black/50 z-40 hidden lg:hidden" id="sidebar-overlay" onclick="toggleSidebar()"></div>
+
+<!-- Main Content Canvas -->
+<main class="pt-20 pb-24 lg:pl-[280px] min-h-screen">
+    <div class="px-container-margin max-w-7xl mx-auto">
+        
+        <!-- ==================== DASHBOARD VIEW ==================== -->
+        <div id="dashboard-view" class="view-panel space-y-8">
+            <section class="mb-4">
+                <h2 class="font-headline-lg-mobile text-headline-lg-mobile md:font-headline-lg md:text-headline-lg text-on-surface mb-1">Project Command Center</h2>
+                <p class="text-on-surface-variant font-body-md">EPC Integrated Monitoring & Quality Diagnostics</p>
+            </section>
+            
+            <!-- Bento Summary Cards -->
+            <section class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+                <div class="glass-card p-6 rounded-xl flex flex-col justify-between hover:border-primary transition-all">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-2 bg-primary/10 rounded-lg">
+                            <span class="material-symbols-outlined text-primary">folder_open</span>
+                        </div>
+                        <span class="font-label-sm text-label-sm text-secondary" id="dash-docs-count">0 Chunks</span>
+                    </div>
+                    <div>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">Vectorized Documents</p>
+                        <h3 class="font-display text-display text-primary" id="dash-docs-total">0</h3>
+                    </div>
+                </div>
+                
+                <div class="glass-card p-6 rounded-xl flex flex-col justify-between hover:border-error transition-all">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-2 bg-error/10 rounded-lg">
+                            <span class="material-symbols-outlined text-error">report_problem</span>
+                        </div>
+                        <span class="font-label-sm text-label-sm text-error" id="dash-ncr-open">0 Open</span>
+                    </div>
+                    <div>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">Total NCRs</p>
+                        <h3 class="font-display text-display text-on-surface" id="dash-ncr-total">0</h3>
+                    </div>
+                </div>
+                
+                <div class="glass-card p-6 rounded-xl flex flex-col justify-between hover:border-secondary transition-all">
+                    <div class="flex justify-between items-start mb-4">
+                        <div class="p-2 bg-secondary/10 rounded-lg">
+                            <span class="material-symbols-outlined text-secondary">analytics</span>
+                        </div>
+                        <span class="font-label-sm text-label-sm text-secondary">Active</span>
+                    </div>
+                    <div>
+                        <p class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest mb-1">CX Sessions Completed</p>
+                        <h3 class="font-display text-display text-secondary" id="dash-sessions-total">0</h3>
+                    </div>
+                </div>
+            </section>
+            
+            <!-- Details Area -->
+            <section class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+                <!-- Activity Feed -->
+                <div class="lg:col-span-6 glass-card rounded-xl overflow-hidden">
+                    <div class="p-6 border-b border-outline-variant flex justify-between items-center">
+                        <h3 class="font-headline-md text-headline-md text-on-surface">Recent Project Activity</h3>
+                        <button class="text-primary font-label-md text-label-md hover:underline" onclick="switchTab('documents')">Manage Docs</button>
+                    </div>
+                    <div class="divide-y divide-outline-variant" id="dashboard-activity-feed">
+                        <div class="p-4 flex gap-4">
+                            <span class="text-on-surface-variant text-sm">No recent activities available. Select or create a project to start.</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Graphic Card -->
+                <div class="lg:col-span-6 relative rounded-xl overflow-hidden min-h-[300px] border border-outline-variant bg-surface-container-high">
+                    <div class="absolute inset-0 bg-gradient-to-t from-background to-transparent z-10"></div>
+                    <div class="absolute bottom-0 left-0 p-8 w-full z-20">
+                        <div class="p-4 glass-card rounded-lg flex items-center justify-between">
+                            <div>
+                                <p class="font-label-sm text-label-sm text-primary uppercase">Core Infrastructure</p>
+                                <p class="font-headline-md text-headline-md">Tier III/IV Specs</p>
+                            </div>
+                            <div class="text-right">
+                                <p class="font-label-sm text-label-sm text-on-surface-variant">RAG Latency</p>
+                                <p class="font-headline-md text-headline-md text-secondary">&lt; 150ms</p>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="absolute inset-0 bg-cover bg-center" style="background-image: url('https://lh3.googleusercontent.com/aida-public/AB6AXuArgNLvSyn_Nkh3xMbxIfNkvRHhV3MNjnsz7ZklwnEM0gj943-CcoEhfxw4kglHCcm19sVIvnD-Yy6369b0h58AjMY3daabxhfTsnsrJ2ruDDaStYvN-qdCu0iiH-xuoXnQJcsV_sqRntlJZqFXQmnsOFVUiT6vZXy7fjJKp1Di4T2bksg2Jsb7knSpNqrSu4yJwWP-EcmYuhW9oU3Lq5ZLvvHOR9M3gULcx-JVD9UVSqnNzd4Q-GUGTEXXGIuv48Z4kZWZWu5ESsiF')"></div>
+                </div>
+            </section>
+        </div>
+        
+        <!-- ==================== DOCUMENTS VIEW ==================== -->
+        <div id="documents-view" class="view-panel space-y-8 hidden">
+            <section class="mb-4">
+                <h2 class="font-headline-lg text-headline-lg text-on-surface">Document Ingestion Hub</h2>
+                <p class="text-on-surface-variant font-body-md">Process and vectorize technical specification PDFs for RAG retrieval.</p>
+            </section>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+                <!-- Upload Panel -->
+                <div class="lg:col-span-5 glass-card rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <div class="flex items-center gap-3 mb-6">
+                            <span class="material-symbols-outlined text-primary">cloud_upload</span>
+                            <h3 class="font-headline-md text-headline-md text-on-surface">Ingest PDF</h3>
+                        </div>
+                        
+                        <div class="border-2 border-dashed border-outline-variant bg-surface-container-lowest/30 rounded-xl flex flex-col items-center justify-center p-8 hover:border-primary/50 transition-all cursor-pointer relative" id="drop-zone" onclick="document.getElementById('file-input').click()">
+                            <div class="p-4 bg-primary/10 rounded-full mb-4">
+                                <span class="material-symbols-outlined text-primary text-3xl">upload_file</span>
+                            </div>
+                            <p class="font-label-md text-label-md text-on-surface mb-1">Click to browse or drop PDF here</p>
+                            <p class="text-on-surface-variant text-label-sm text-[11px]" id="selected-file-label">PDF files only (max 500MB)</p>
+                            <input accept=".pdf" class="hidden" id="file-input" type="file" onchange="handleFileSelect(this)"/>
+                        </div>
+                        
+                        <div class="mt-6 space-y-4">
+                            <div>
+                                <label class="font-label-sm text-label-sm text-on-surface-variant block mb-2">Document Category</label>
+                                <select id="doc-type-input" class="w-full bg-surface-container-highest border border-outline-variant rounded p-3 text-on-surface focus:border-primary outline-none">
+                                    <option value="submittal">Vendor Submittal</option>
+                                    <option value="spec">Project Specification</option>
+                                    <option value="standard">Global Standard (TIA-942/BIS/etc.)</option>
+                                    <option value="rfi_log">RFI Log</option>
+                                    <option value="schedule">Project Schedule</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="mt-8">
+                        <button class="w-full bg-primary text-on-primary font-bold py-3 rounded hover:bg-primary-container transition-all flex items-center justify-center gap-2 shadow-lg" onclick="uploadActiveFile()">
+                            <span class="material-symbols-outlined">add</span> Ingest & Vectorize
+                        </button>
+                    </div>
+                    
+                    <!-- Upload Loading Overlay -->
+                    <div id="upload-loading-overlay" class="hidden mt-4 p-4 bg-primary/10 border border-primary/20 rounded flex items-center gap-3">
+                        <span class="w-3 h-3 rounded-full bg-primary animate-ping"></span>
+                        <span class="text-sm text-primary" id="upload-status-text">Ingesting PDF... This may take a minute.</span>
+                    </div>
+                </div>
+                
+                <!-- Files List Table -->
+                <div class="lg:col-span-7 glass-card rounded-xl overflow-hidden flex flex-col">
+                    <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-high">
+                        <h3 class="font-headline-md text-headline-md text-on-surface">Vectorized Project Documents</h3>
+                        <span class="bg-primary/10 text-primary px-3 py-1 rounded-full text-label-sm font-label-sm font-bold" id="doc-list-total-badge">0 Files</span>
+                    </div>
+                    
+                    <div class="overflow-x-auto flex-1 max-h-[500px]">
+                        <table class="w-full text-left border-collapse">
+                            <thead class="bg-surface-container-highest/50 sticky top-0 z-10">
+                                <tr>
+                                    <th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">FILENAME</th>
+                                    <th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">TYPE</th>
+                                    <th class="px-6 py-4 font-label-md text-label-md text-on-surface-variant border-b border-outline-variant">CHUNKS</th>
+                                </tr>
+                            </thead>
+                            <tbody class="divide-y divide-outline-variant/30 text-sm" id="document-table-body">
+                                <tr>
+                                    <td colspan="3" class="px-6 py-8 text-center text-on-surface-variant">No vectorized documents found. Please ingest your first PDF.</td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ==================== COMPLIANCE VIEW ==================== -->
+        <div id="compliance-view" class="view-panel space-y-8 hidden">
+            <section class="bg-surface-container-low p-6 border border-outline-variant rounded-lg">
+                <div class="flex flex-col md:flex-row md:items-end justify-between gap-6">
+                    <div class="space-y-4 flex-1">
+                        <div class="flex items-center gap-2 text-primary">
+                            <span class="material-symbols-outlined">verified</span>
+                            <h2 class="font-headline-md text-headline-md">Spec Compliance Diagnostics</h2>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div class="space-y-1">
+                                <label class="font-label-sm text-label-sm text-outline uppercase">Target Submittal Document</label>
+                                <select id="compliance-submittal-select" class="w-full bg-background border border-outline-variant text-on-surface p-3 rounded-lg focus:ring-1 focus:ring-primary focus:outline-none appearance-none cursor-pointer">
+                                    <option value="">Select Submittal PDF...</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <button class="bg-primary text-on-primary-container h-14 px-8 font-bold rounded-lg flex items-center justify-center gap-2 hover:opacity-90 transition-opacity" onclick="runComplianceScan()">
+                        <span class="material-symbols-outlined">analytics</span> Run Compliance Scan
+                    </button>
+                </div>
+                
+                <!-- Compliance Scanning Status -->
+                <div id="compliance-scan-status" class="hidden mt-4 p-4 bg-primary/10 border border-primary/20 rounded flex items-center justify-between">
+                    <div class="flex items-center gap-3">
+                        <span class="w-3 h-3 rounded-full bg-primary animate-ping"></span>
+                        <span class="text-sm text-primary">Llama-3.3 agent is cross-referencing submittal specs against global standard specs...</span>
+                    </div>
+                </div>
+            </section>
+            
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-gutter">
+                <!-- Left: Deviations Summary List -->
+                <div class="lg:col-span-4 space-y-gutter">
+                    <div class="bg-surface-container p-6 border border-outline-variant rounded-lg">
+                        <h3 class="font-headline-md text-headline-md text-on-surface mb-4">Compliance Rating</h3>
+                        <div class="flex items-center justify-between p-3 bg-surface-container-high border border-outline-variant rounded mb-3">
+                            <span class="text-on-surface-variant font-label-md">Status</span>
+                            <span class="font-label-md text-secondary font-bold" id="compliance-overall-status">Awaiting Scan</span>
+                        </div>
+                        <div id="compliance-chart-summary" class="space-y-2">
+                            <p class="text-sm text-on-surface-variant">Perform a compliance scan on a submittal document to isolate technical deviations and generate structured NCRs.</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Right: NCR Manager -->
+                <div class="lg:col-span-8 space-y-gutter">
+                    <div class="bg-surface-container-low border border-outline-variant rounded-lg overflow-hidden flex flex-col min-h-[600px]">
+                        <div class="p-6 border-b border-outline-variant bg-surface-container-high flex justify-between items-center">
+                            <h3 class="font-headline-md text-headline-md text-on-surface">Non-Conformance Reports (NCR) Log</h3>
+                        </div>
+                        
+                        <div class="p-6 space-y-6 overflow-y-auto max-h-[600px]" id="ncr-list-container">
+                            <p class="text-center text-on-surface-variant py-8">Select a project to inspect generated Non-Conformance Reports.</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ==================== COMMISSIONING VIEW ==================== -->
+        <div id="copilot-view" class="view-panel space-y-8 hidden">
+            <section class="flex flex-col md:flex-row justify-between items-start md:items-center gap-4">
+                <div>
+                    <h2 class="font-headline-lg text-headline-lg">Commissioning QA Copilot</h2>
+                    <p class="font-body-md text-on-surface-variant">MEP Component Testing & Real-Time Pass/Fail Validation</p>
+                </div>
+                <div class="flex items-center gap-3">
+                    <div class="flex items-center gap-2 px-3 py-1.5 rounded-full bg-surface-container-high border border-outline-variant">
+                        <span class="w-2 h-2 rounded-full bg-primary" id="cx-session-pulse"></span>
+                        <span class="font-label-md text-label-md" id="cx-session-status-label">Awaiting Session</span>
+                    </div>
+                </div>
+            </section>
+            
+            <div class="grid grid-cols-12 gap-gutter">
+                <!-- Control Column -->
+                <div class="col-span-12 lg:col-span-4 flex flex-col gap-gutter">
+                    <!-- Session Selector -->
+                    <div class="bg-surface-container-low border border-outline-variant p-6 rounded-lg flex flex-col gap-4">
+                        <h3 class="font-label-md text-label-md text-primary uppercase tracking-wider">Subsystem Config</h3>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label-sm text-on-surface-variant">Select MEP Subsystem</label>
+                            <select id="cx-system-type" class="bg-background border border-outline text-on-surface rounded px-4 py-2.5 font-body-md focus:border-primary outline-none transition-all cursor-pointer">
+                                <option value="ups">UPS System Tests</option>
+                                <option value="generator">Generator System Tests</option>
+                                <option value="cooling">Cooling System Tests</option>
+                                <option value="fire_suppression">Fire Suppression Tests</option>
+                                <option value="bms">BMS Tests</option>
+                            </select>
+                        </div>
+                        <button class="w-full bg-primary text-on-primary py-3 px-6 rounded font-label-md text-label-md hover:bg-primary-container transition-all flex items-center justify-center gap-2 group mt-2" onclick="startCxSession()">
+                            <span class="material-symbols-outlined">play_arrow</span> Initialize Session
+                        </button>
+                    </div>
+                    
+                    <!-- Result Submission -->
+                    <div class="bg-surface-container-low border border-outline-variant p-6 rounded-lg flex flex-col gap-4">
+                        <h3 class="font-label-md text-label-md text-primary uppercase tracking-wider">Submit Measured Parameters</h3>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label-sm text-on-surface-variant">Measured Input Value</label>
+                            <input id="cx-measured-val" class="w-full bg-background border border-outline text-on-surface rounded px-4 py-2.5 font-label-md focus:border-primary outline-none" placeholder="e.g. 512.4 or 230" type="text" disabled/>
+                        </div>
+                        <div class="flex flex-col gap-2">
+                            <label class="font-label-sm text-on-surface-variant">Field Notes</label>
+                            <textarea id="cx-notes-val" class="w-full bg-background border border-outline text-on-surface rounded px-4 py-2.5 font-body-sm focus:border-primary outline-none resize-none" placeholder="Add anomalies or environmental observations..." rows="3" disabled></textarea>
+                        </div>
+                        <button id="cx-submit-btn" class="w-full bg-secondary-container text-on-secondary-container py-3 px-4 rounded font-label-md text-label-md hover:bg-secondary transition-all opacity-50 cursor-not-allowed" onclick="submitCxMeasurement()" disabled>
+                            Submit Parameter
+                        </button>
+                    </div>
+                </div>
+                
+                <!-- Terminal Column -->
+                <div class="col-span-12 lg:col-span-8 flex flex-col">
+                    <div class="bg-[#0a0f0d] border border-outline-variant rounded-lg flex flex-col h-[550px] shadow-2xl relative overflow-hidden">
+                        <!-- Header -->
+                        <div class="bg-surface-container-high px-4 py-2 border-b border-outline-variant flex justify-between items-center">
+                            <span class="font-label-sm text-label-sm text-on-surface-variant uppercase tracking-widest">Procedural Terminal - Copilot v2.4</span>
+                            <span class="font-label-sm text-label-sm text-primary" id="cx-terminal-id-tag">Session: None</span>
+                        </div>
+                        <div class="absolute inset-0 scanline opacity-20 z-10"></div>
+                        
+                        <!-- Terminal Log Screen -->
+                        <div class="flex-1 p-6 font-label-md text-label-md overflow-y-auto terminal-scroll relative z-20 flex flex-col gap-4 text-sm" id="cx-terminal-log">
+                            <div class="text-on-surface-variant">
+                                <span class="text-primary">[SYS]</span> Awaiting subsystem configuration and initialization...
+                            </div>
+                        </div>
+                        
+                        <!-- Actions Footer -->
+                        <div class="p-4 bg-surface-container-low border-t border-outline-variant flex justify-between items-center relative z-20">
+                            <div class="flex flex-col">
+                                <span class="text-[10px] text-on-surface-variant uppercase">Subsystem Status</span>
+                                <span class="text-primary font-bold" id="cx-terminal-live-tag">INACTIVE</span>
+                            </div>
+                            <div class="flex gap-2">
+                                <button id="cx-export-pdf-btn" class="flex items-center gap-2 px-4 py-2 bg-surface-container-high border border-outline-variant rounded hover:bg-surface-container-highest transition-colors font-label-sm text-label-sm text-primary opacity-50 cursor-not-allowed" onclick="exportCxPDF()" disabled>
+                                    <span class="material-symbols-outlined text-[18px]">picture_as_pdf</span> Export Test Record PDF
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ==================== RFI VIEW ==================== -->
+        <div id="rfi-view" class="view-panel space-y-8 hidden">
+            <div class="h-[750px] flex flex-col bg-surface-container-low border border-outline-variant rounded-xl overflow-hidden">
+                <div class="p-6 border-b border-outline-variant flex justify-between items-center bg-surface-container-high">
+                    <div>
+                        <h2 class="font-headline-lg text-headline-lg text-on-surface">RFI Technical Assistant</h2>
+                        <p class="text-on-surface-variant font-body-md">Query project submittals and specifications with verifiable citations.</p>
+                    </div>
+                </div>
+                
+                <!-- Chat Window -->
+                <div class="flex-1 overflow-y-auto p-6 flex flex-col gap-6" id="rfi-chat-messages">
+                    <div class="flex justify-start">
+                        <div class="max-w-[80%] flex gap-4">
+                            <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0 border border-primary/20">
+                                <span class="material-symbols-outlined text-primary">smart_toy</span>
+                            </div>
+                            <div class="p-5 glass-card rounded-2xl rounded-tl-none">
+                                <p class="text-on-surface">Hello! I am your RFI Assistant. I can search all vectorized specifications and documents for this project. Ask me any technical parameter question!</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Citations Dock -->
+                <div id="rfi-citations-dock" class="hidden p-4 bg-surface-container-high border-t border-outline-variant">
+                    <p class="font-label-sm text-[11px] text-primary uppercase mb-2">References & Evidence Citations:</p>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="rfi-citations-list"></div>
+                </div>
+                
+                <!-- Input Block -->
+                <div class="p-6 bg-surface-container-high/50 border-t border-outline-variant">
+                    <div class="flex items-center bg-background border border-outline-variant rounded-xl p-2 focus-within:border-primary transition-all">
+                        <input id="rfi-query-input" class="flex-1 bg-transparent border-none focus:ring-0 text-on-surface placeholder:text-on-surface-variant/50 px-4" placeholder="Ask a structural or equipment specification question..." type="text" onkeydown="if(event.key === 'Enter') sendRfiQuery()"/>
+                        <button class="h-10 px-6 bg-primary text-on-primary font-bold rounded-lg flex items-center gap-2 hover:scale-[1.02] active:scale-95 transition-all shadow-md" onclick="sendRfiQuery()">
+                            ASK <span class="material-symbols-outlined text-sm">send</span>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- ==================== SCHEDULE VIEW ==================== -->
+        <div id="schedule-view" class="view-panel space-y-8 hidden">
+            <section class="grid grid-cols-1 lg:grid-cols-12 gap-gutter items-start">
+                <div class="lg:col-span-8">
+                    <h2 class="font-headline-lg text-headline-lg text-on-surface mb-2">Schedule Risk Analyser</h2>
+                    <p class="text-on-surface-variant font-body-md">Ingest Primavera P6 schedules to run CPM diagnostics and critical path analysis.</p>
+                </div>
+            </section>
+            
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-gutter">
+                <!-- Upload schedule -->
+                <div class="md:col-span-2 border-2 border-dashed border-outline-variant bg-surface-container-low rounded-xl p-8 flex flex-col items-center justify-center text-center hover:border-primary transition-colors cursor-pointer relative" onclick="document.getElementById('schedule-file-input').click()">
+                    <div class="w-12 h-12 rounded-full bg-surface-container-highest flex items-center justify-center mb-4">
+                        <span class="material-symbols-outlined text-primary text-xl">upload_file</span>
+                    </div>
+                    <h3 class="font-headline-md text-headline-md text-on-surface mb-1">Select Schedule Data File</h3>
+                    <p class="text-on-surface-variant text-sm mb-2">Select a JSON export of construction tasks and floating dependencies</p>
+                    <input id="schedule-file-input" class="hidden" type="file" accept=".json" onchange="handleScheduleUpload(this)"/>
+                    <div class="px-4 py-1.5 bg-primary/10 rounded border border-primary/20 text-xs text-primary font-bold" id="schedule-filename-label">Browse JSON</div>
+                </div>
+                
+                <!-- Health summary -->
+                <div class="bg-surface-container border border-outline-variant rounded-xl p-6 flex flex-col justify-between">
+                    <div>
+                        <span class="text-on-surface-variant font-label-md uppercase tracking-wider block mb-2">CPM Status</span>
+                        <div class="text-primary font-display text-3xl font-bold leading-tight" id="schedule-health-label">Awaiting Upload</div>
+                    </div>
+                    <div class="pt-4 border-t border-outline-variant text-sm text-on-surface-variant" id="schedule-path-desc">
+                        Provide a schedule JSON export to analyze critical chain risks.
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Risk table -->
+            <section class="bg-surface-container border border-outline-variant rounded-xl overflow-hidden hidden" id="schedule-results-section">
+                <div class="px-6 py-4 border-b border-outline-variant bg-surface-container-high">
+                    <h3 class="font-headline-md text-headline-md text-on-surface">Critical Path Risk Items</h3>
+                </div>
+                <div class="overflow-x-auto">
+                    <table class="w-full text-left">
+                        <thead class="bg-surface-container-low border-b border-outline-variant text-sm">
+                            <tr>
+                                <th class="px-6 py-4 font-label-md text-on-surface-variant">ACTIVITY DESCRIPTION</th>
+                                <th class="px-6 py-4 font-label-md text-on-surface-variant text-center">SEVERITY</th>
+                                <th class="px-6 py-4 font-label-md text-on-surface-variant text-center">FLOAT DAYS</th>
+                                <th class="px-6 py-4 font-label-md text-on-surface-variant text-center">SLIPPAGE IMPACT</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-outline-variant text-sm" id="schedule-risks-table-body"></tbody>
+                    </table>
+                </div>
+            </section>
+        </div>
+        
+    </div>
+</main>
+
+<!-- Create Project Modal -->
+<div class="fixed inset-0 z-[60] flex items-center justify-center p-4 hidden" id="project-modal">
+    <div class="absolute inset-0 bg-black/80 backdrop-blur-sm" onclick="toggleModal('project-modal')"></div>
+    <div class="relative bg-surface-container border border-outline-variant w-full max-w-md rounded-xl overflow-hidden shadow-2xl">
+        <div class="p-6 border-b border-outline-variant flex justify-between items-center">
+            <h3 class="font-headline-md text-headline-md text-primary font-bold">Initiate New Project Node</h3>
+            <button class="text-on-surface-variant hover:text-on-surface" onclick="toggleModal('project-modal')">
+                <span class="material-symbols-outlined">close</span>
+            </button>
+        </div>
+        <form class="p-6 space-y-6" onsubmit="createProject(event)">
+            <div>
+                <label class="block font-label-sm text-label-sm text-on-surface-variant mb-2">PROJECT NAME</label>
+                <input id="new-project-name" required class="w-full bg-background border border-outline-variant rounded px-4 py-3 text-on-surface focus:border-primary outline-none transition-all" placeholder="e.g. Frankfurt FRA02 Data Center" type="text"/>
+            </div>
+            <div>
+                <label class="block font-label-sm text-label-sm text-on-surface-variant mb-2">GEOGRAPHIC LOCATION</label>
+                <input id="new-project-location" class="w-full bg-background border border-outline-variant rounded px-4 py-3 text-on-surface focus:border-primary outline-none transition-all" placeholder="e.g. Frankfurt, Germany" type="text"/>
+            </div>
+            <div>
+                <label class="block font-label-sm text-label-sm text-on-surface-variant mb-2">REDUNDANCY TIER CONFIG</label>
+                <select id="new-project-tier" class="w-full bg-background border border-outline-variant rounded px-4 py-3 text-on-surface focus:border-primary outline-none transition-all">
+                    <option value="III">Tier III Requirement</option>
+                    <option value="IV">Tier IV Fault Tolerant</option>
+                </select>
+            </div>
+            <div class="pt-4 flex gap-3">
+                <button class="flex-1 border border-outline-variant py-3 rounded font-bold text-on-surface-variant hover:bg-surface-container-highest transition-all" onclick="toggleModal('project-modal')" type="button">Cancel</button>
+                <button class="flex-1 bg-primary text-on-primary py-3 rounded font-bold hover:opacity-90 transition-opacity" type="submit">Deploy Node</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+    // --- State Variables ---
+    let activeProjectId = null;
+    let activeCxSessionId = null;
+    let cxTimerInterval = null;
+    let cxTimerSeconds = 0;
+    let selectedUploadFile = null;
+
+    // --- Tab Switching Navigation ---
+    function switchTab(tabId, element) {
+        document.querySelectorAll('.view-panel').forEach(panel => panel.classList.add('hidden'));
+        document.getElementById(`${tabId}-view`).classList.remove('hidden');
+
+        document.querySelectorAll('.nav-item').forEach(item => {
+            item.className = 'nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-colors text-on-surface-variant hover:bg-surface-container-highest';
+            const icon = item.querySelector('.material-symbols-outlined');
+            if (icon) icon.style.fontVariationSettings = "'FILL' 0";
+        });
+
+        if (element) {
+            element.className = 'nav-item flex items-center gap-4 py-3 px-4 rounded-r-full transition-all group bg-secondary-container text-on-secondary-container border-l-2 border-primary active-tab-indicator';
+            const icon = element.querySelector('.material-symbols-outlined');
+            if (icon) icon.style.fontVariationSettings = "'FILL' 1";
+        }
+        
+        // Hide mobile sidebar after selection
+        if (window.innerWidth < 1024) {
+            document.getElementById('sidebar').classList.add('-translate-x-full');
+            document.getElementById('sidebar-overlay').classList.add('hidden');
+        }
+
+        // Fetch target-specific view lists
+        if (tabId === 'documents') {
+            loadDocuments();
+        } else if (tabId === 'compliance') {
+            loadComplianceDocsDropdown();
+            loadNCRs();
+            loadNCRSummary();
+        }
     }
-  });
-  update();
-});
+
+    function toggleSidebar() {
+        const sidebar = document.getElementById('sidebar');
+        const overlay = document.getElementById('sidebar-overlay');
+        sidebar.classList.toggle('-translate-x-full');
+        overlay.classList.toggle('hidden');
+    }
+
+    function toggleModal(id) {
+        const modal = document.getElementById(id);
+        modal.classList.toggle('hidden');
+    }
+
+    // --- Backend API Services ---
+    const API_BASE = ""; // Relative url for single-origin deployments
+
+    window.addEventListener('DOMContentLoaded', () => {
+        loadProjects();
+    });
+
+    // 1. Projects Services
+    async function loadProjects() {
+        try {
+            const res = await fetch(`${API_BASE}/api/projects/list`);
+            const data = await res.json();
+            const selector = document.getElementById('project-selector');
+            selector.innerHTML = '';
+            
+            if (data.projects && data.projects.length > 0) {
+                data.projects.forEach(p => {
+                    const opt = document.createElement('option');
+                    opt.value = p.id;
+                    opt.textContent = `${p.name} (${p.location || 'Unknown'})`;
+                    selector.appendChild(opt);
+                });
+                if (!activeProjectId) {
+                    switchProject(data.projects[0].id);
+                }
+            } else {
+                selector.innerHTML = '<option value="">No projects found</option>';
+                document.getElementById('active-project-name').textContent = "Create a project to start";
+            }
+        } catch (err) {
+            console.error("Failed to load projects", err);
+        }
+    }
+
+    async function createProject(e) {
+        e.preventDefault();
+        const name = document.getElementById('new-project-name').value;
+        const location = document.getElementById('new-project-location').value;
+        const tier = document.getElementById('new-project-tier').value;
+
+        try {
+            const formData = new FormData();
+            formData.append('name', name);
+            formData.append('location', location);
+            formData.append('tier_level', tier);
+
+            const res = await fetch(`${API_BASE}/api/projects/create`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                toggleModal('project-modal');
+                await loadProjects();
+                switchProject(data.project_id);
+                // Clear inputs
+                document.getElementById('new-project-name').value = '';
+                document.getElementById('new-project-location').value = '';
+            } else {
+                alert("Failed to create project");
+            }
+        } catch (err) {
+            console.error("Error creating project", err);
+        }
+    }
+
+    function switchProject(id) {
+        if (!id) return;
+        activeProjectId = parseInt(id);
+        const selector = document.getElementById('project-selector');
+        selector.value = activeProjectId;
+        
+        const selectedOption = selector.options[selector.selectedIndex];
+        document.getElementById('active-project-name').textContent = selectedOption ? selectedOption.textContent : "Active Project";
+        
+        // Refresh dashboard bento states
+        refreshDashboardMetrics();
+        // Cancel active commissioning sessions to avoid leaks
+        activeCxSessionId = null;
+        if (cxTimerInterval) clearInterval(cxTimerInterval);
+        document.getElementById('cx-session-status-label').textContent = 'Awaiting Session';
+        document.getElementById('cx-session-pulse').className = 'w-2 h-2 rounded-full bg-primary';
+    }
+
+    async function refreshDashboardMetrics() {
+        if (!activeProjectId) return;
+        try {
+            // Load docs count
+            const dRes = await fetch(`${API_BASE}/api/documents/list?project_id=${activeProjectId}`);
+            const dData = await dRes.json();
+            const docs = dData.documents || [];
+            document.getElementById('dash-docs-total').textContent = docs.length;
+            let chunkSum = docs.reduce((acc, d) => acc + (d.chunk_count || 0), 0);
+            document.getElementById('dash-docs-count').textContent = `${chunkSum.toLocaleString()} Chunks`;
+
+            // Load NCR count
+            const nRes = await fetch(`${API_BASE}/api/ncr/summary?project_id=${activeProjectId}`);
+            const nData = await nRes.json();
+            document.getElementById('dash-ncr-total').textContent = nData.total || 0;
+            document.getElementById('dash-ncr-open').textContent = `${nData.by_status?.open || 0} Open`;
+
+            // Refresh Activity Feed Mockup
+            const feed = document.getElementById('dashboard-activity-feed');
+            feed.innerHTML = '';
+            if (docs.length > 0) {
+                docs.slice(0, 3).forEach(doc => {
+                    const item = document.createElement('div');
+                    item.className = 'p-4 flex gap-4 hover:bg-surface-container-highest transition-colors';
+                    item.innerHTML = `
+                        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <span class="material-symbols-outlined text-primary text-sm">upload_file</span>
+                        </div>
+                        <div>
+                            <p class="font-body-md text-body-md text-on-surface">
+                                Vectorized <span class="text-primary font-bold">${doc.filename}</span> (${doc.doc_type})
+                            </p>
+                            <p class="font-label-sm text-label-sm text-on-surface-variant">${new Date(doc.upload_date).toLocaleString()}</p>
+                        </div>
+                    `;
+                    feed.appendChild(item);
+                });
+            } else {
+                feed.innerHTML = `
+                    <div class="p-6 text-center text-on-surface-variant text-sm">
+                        No recent document modifications found. Go to the Documents tab to upload spec sheets.
+                    </div>
+                `;
+            }
+        } catch (err) {
+            console.error("Failed to refresh dashboard indicators", err);
+        }
+    }
+
+    // 2. Document Ingestion Services
+    function handleFileSelect(input) {
+        if (input.files && input.files[0]) {
+            selectedUploadFile = input.files[0];
+            document.getElementById('selected-file-label').textContent = `${selectedUploadFile.name} (${(selectedUploadFile.size / 1024 / 1024).toFixed(2)} MB)`;
+        }
+    }
+
+    async function uploadActiveFile() {
+        if (!activeProjectId) {
+            alert("Please create or select a project first");
+            return;
+        }
+        if (!selectedUploadFile) {
+            alert("Please select a PDF document to upload.");
+            return;
+        }
+
+        const docType = document.getElementById('doc-type-input').value;
+        const overlay = document.getElementById('upload-loading-overlay');
+        overlay.classList.remove('hidden');
+
+        try {
+            const formData = new FormData();
+            formData.append('file', selectedUploadFile);
+            formData.append('doc_type', docType);
+            formData.append('project_id', activeProjectId);
+
+            const res = await fetch(`${API_BASE}/api/documents/ingest`, {
+                method: 'POST',
+                body: formData
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                alert(`Successfully vectorized document. Created ${data.chunk_count} chunks.`);
+                selectedUploadFile = null;
+                document.getElementById('selected-file-label').textContent = 'PDF files only (max 500MB)';
+                document.getElementById('file-input').value = '';
+                await loadDocuments();
+                await refreshDashboardMetrics();
+            } else {
+                const errData = await res.json();
+                alert(`Ingestion failed: ${errData.detail || 'Server error'}`);
+            }
+        } catch (err) {
+            console.error("Upload error", err);
+            alert("Network connection error during ingestion.");
+        } finally {
+            overlay.classList.add('hidden');
+        }
+    }
+
+    async function loadDocuments() {
+        if (!activeProjectId) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/documents/list?project_id=${activeProjectId}`);
+            const data = await res.json();
+            const tableBody = document.getElementById('document-table-body');
+            tableBody.innerHTML = '';
+            
+            const docs = data.documents || [];
+            document.getElementById('doc-list-total-badge').textContent = `${docs.length} Vector Files`;
+
+            if (docs.length > 0) {
+                docs.forEach(doc => {
+                    const tr = document.createElement('tr');
+                    tr.className = 'hover:bg-surface-container-highest/30 transition-colors';
+                    tr.innerHTML = `
+                        <td class="px-6 py-4">
+                            <div class="flex items-center gap-3">
+                                <span class="material-symbols-outlined text-error">picture_as_pdf</span>
+                                <span class="font-body-md font-medium text-on-surface">${doc.filename}</span>
+                            </div>
+                        </td>
+                        <td class="px-6 py-4">
+                            <span class="border border-primary/50 bg-primary/10 text-primary px-2 py-0.5 rounded text-label-sm">${doc.doc_type}</span>
+                        </td>
+                        <td class="px-6 py-4 font-label-md text-primary text-label-sm">${doc.chunk_count}</td>
+                    `;
+                    tableBody.appendChild(tr);
+                });
+            } else {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td colspan="3" class="px-6 py-8 text-center text-on-surface-variant">No vectorized documents found. Please ingest your first PDF.</td>
+                    </tr>
+                `;
+            }
+        } catch (err) {
+            console.error("Error loading documents list", err);
+        }
+    }
+
+    // 3. Spec Compliance & NCR Manager Services
+    async function loadComplianceDocsDropdown() {
+        if (!activeProjectId) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/documents/list?project_id=${activeProjectId}`);
+            const data = await res.json();
+            const dropdown = document.getElementById('compliance-submittal-select');
+            dropdown.innerHTML = '<option value="">Select Submittal PDF...</option>';
+            
+            const docs = data.documents || [];
+            docs.filter(d => d.doc_type === 'submittal').forEach(d => {
+                const opt = document.createElement('option');
+                opt.value = d.id;
+                opt.textContent = d.filename;
+                dropdown.appendChild(opt);
+            });
+        } catch (err) {
+            console.log("Error loading compliance documents dropdown", err);
+        }
+    }
+
+    async function runComplianceScan() {
+        if (!activeProjectId) return;
+        const docId = document.getElementById('compliance-submittal-select').value;
+        if (!docId) {
+            alert("Please select a target submittal document first.");
+            return;
+        }
+
+        const statusPanel = document.getElementById('compliance-scan-status');
+        statusPanel.classList.remove('hidden');
+
+        try {
+            const res = await fetch(`${API_BASE}/api/compliance/check`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    doc_id: parseInt(docId),
+                    project_id: activeProjectId
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                alert(`Compliance analysis completed. Raised ${data.ncrs_created || 0} non-conformances.`);
+                await loadNCRs();
+                await loadNCRSummary();
+                await refreshDashboardMetrics();
+            } else {
+                const errData = await res.json();
+                alert(`Scan failed: ${errData.detail || 'Analysis error'}`);
+            }
+        } catch (err) {
+            console.error("Compliance run error", err);
+            alert("Connection error during AI scanning.");
+        } finally {
+            statusPanel.classList.add('hidden');
+        }
+    }
+
+    async function loadNCRSummary() {
+        if (!activeProjectId) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/ncr/summary?project_id=${activeProjectId}`);
+            const data = await res.json();
+            
+            const summaryContainer = document.getElementById('compliance-chart-summary');
+            summaryContainer.innerHTML = `
+                <div class="mt-4 space-y-3">
+                    <div class="flex justify-between items-center p-3 bg-error-container/10 border border-error/20 rounded">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-error"></div>
+                            <span class="font-label-md text-label-md text-error">Critical Severity</span>
+                        </div>
+                        <span class="font-label-md text-label-md">${data.by_severity?.critical || 0}</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-orange-950/15 border border-orange-500/20 rounded">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-orange-500"></div>
+                            <span class="font-label-md text-label-md text-orange-400">Major Severity</span>
+                        </div>
+                        <span class="font-label-md text-label-md">${data.by_severity?.major || 0}</span>
+                    </div>
+                    <div class="flex justify-between items-center p-3 bg-yellow-950/15 border border-yellow-500/20 rounded">
+                        <div class="flex items-center gap-2">
+                            <div class="w-2 h-2 rounded-full bg-yellow-400"></div>
+                            <span class="font-label-md text-label-md text-yellow-300">Minor Severity</span>
+                        </div>
+                        <span class="font-label-md text-label-md">${data.by_severity?.minor || 0}</span>
+                    </div>
+                </div>
+            `;
+            document.getElementById('compliance-overall-status').textContent = 
+                (data.by_severity?.critical || 0) > 0 ? "Non-Compliant" : 
+                (data.by_severity?.major || 0) > 0 ? "Review Needed" : 
+                data.total > 0 ? "Satisfactory" : "Awaiting Scan";
+        } catch (err) {
+            console.error("Failed to load NCR summary", err);
+        }
+    }
+
+    async function loadNCRs() {
+        if (!activeProjectId) return;
+        try {
+            const res = await fetch(`${API_BASE}/api/ncr/list?project_id=${activeProjectId}`);
+            const data = await res.json();
+            const container = document.getElementById('ncr-list-container');
+            container.innerHTML = '';
+
+            const ncrs = data.ncrs || [];
+            if (ncrs.length > 0) {
+                ncrs.forEach(n => {
+                    const card = document.createElement('div');
+                    card.className = 'bg-surface-container-highest border border-outline-variant rounded-xl p-6 transition-all';
+                    
+                    const severityClass = n.severity === 'critical' ? 'bg-error/15 text-error border-error/30' : 
+                                          n.severity === 'major' ? 'bg-orange-500/15 text-orange-400 border-orange-500/30' : 
+                                          'bg-yellow-400/15 text-yellow-300 border-yellow-400/30';
+                    
+                    card.innerHTML = `
+                        <div class="flex flex-wrap justify-between items-start gap-4 mb-4">
+                            <div class="space-y-1">
+                                <div class="flex items-center gap-3">
+                                    <span class="font-label-md text-label-sm ${severityClass} px-3 py-1 rounded border uppercase tracking-wider">${n.severity} Deviation</span>
+                                    <span class="font-label-sm text-outline font-label-md text-xs">NCR ID: #${n.ncr_id}</span>
+                                </div>
+                                <h4 class="font-headline-md text-md mt-2 text-on-surface font-bold">Clause: ${n.clause_ref}</h4>
+                            </div>
+                            
+                            <!-- Status Controller -->
+                            <div class="flex bg-background p-1 rounded-lg border border-outline-variant">
+                                <button class="px-3 py-1.5 text-xs rounded transition-colors ${n.status === 'open' ? 'bg-surface-container font-bold text-primary' : 'text-on-surface-variant'}" onclick="updateNCRStatus(${n.ncr_id}, 'open')">Open</button>
+                                <button class="px-3 py-1.5 text-xs rounded transition-colors ${n.status === 'resolved' ? 'bg-surface-container font-bold text-primary' : 'text-on-surface-variant'}" onclick="updateNCRStatus(${n.ncr_id}, 'resolved')">Resolved</button>
+                                <button class="px-3 py-1.5 text-xs rounded transition-colors ${n.status === 'waived' ? 'bg-surface-container font-bold text-primary' : 'text-on-surface-variant'}" onclick="updateNCRStatus(${n.ncr_id}, 'waived')">Waived</button>
+                            </div>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <p class="font-label-sm text-xs text-outline uppercase mb-1">Required value</p>
+                                <div class="bg-background p-3 rounded border border-outline-variant text-sm">${n.required_value || 'N/A'}</div>
+                            </div>
+                            <div>
+                                <p class="font-label-sm text-xs text-outline uppercase mb-1">Submittal value</p>
+                                <div class="bg-background p-3 rounded border border-outline-variant text-sm text-error">${n.submittal_value || 'N/A'}</div>
+                            </div>
+                        </div>
+                        
+                        <div class="bg-primary/5 border border-primary/20 p-4 rounded">
+                            <p class="text-xs text-primary font-bold flex items-center gap-1 mb-1">
+                                <span class="material-symbols-outlined text-xs">smart_toy</span> AI Corrective Action
+                            </p>
+                            <p class="text-xs text-on-surface-variant italic">${n.recommendation || 'No recommendation provided'}</p>
+                        </div>
+                    `;
+                    container.appendChild(card);
+                });
+            } else {
+                container.innerHTML = `
+                    <div class="py-8 text-center text-on-surface-variant text-sm">
+                        No Non-Conformance Reports (NCR) found. Use the compliance scanner to analyze technical documentation.
+                    </div>
+                `;
+            }
+        } catch (err) {
+            console.error("Error loading NCRs list", err);
+        }
+    }
+
+    async function updateNCRStatus(ncrId, status) {
+        try {
+            const res = await fetch(`${API_BASE}/api/ncr/${ncrId}/status`, {
+                method: 'PUT',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ status })
+            });
+            if (res.ok) {
+                await loadNCRs();
+                await loadNCRSummary();
+                await refreshDashboardMetrics();
+            } else {
+                alert("Failed to update status");
+            }
+        } catch (err) {
+            console.error("Error updating NCR status", err);
+        }
+    }
+
+    // 4. Commissioning QA Copilot Services
+    async function startCxSession() {
+        if (!activeProjectId) {
+            alert("Please create or select a project first");
+            return;
+        }
+        const sysType = document.getElementById('cx-system-type').value;
+        const terminal = document.getElementById('cx-terminal-log');
+        
+        terminal.innerHTML = `
+            <div class="text-on-surface-variant">
+                <span class="text-primary">[SYS]</span> Initializing ${sysType.toUpperCase()} testing sequence...
+            </div>
+        `;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/commissioning/start`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    system_type: sysType,
+                    project_id: activeProjectId
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                activeCxSessionId = data.session_id;
+
+                // Update UI indicators
+                document.getElementById('cx-session-status-label').textContent = `Testing: ${sysType.toUpperCase()}`;
+                document.getElementById('cx-session-pulse').className = 'w-2 h-2 rounded-full bg-secondary animate-pulse';
+                document.getElementById('cx-terminal-id-tag').textContent = `Session: CX-${activeCxSessionId}`;
+                document.getElementById('cx-terminal-live-tag').textContent = 'RUNNING';
+                document.getElementById('cx-terminal-live-tag').className = 'text-secondary font-bold';
+
+                // Unlock inputs
+                document.getElementById('cx-measured-val').disabled = false;
+                document.getElementById('cx-notes-val').disabled = false;
+                
+                const submitBtn = document.getElementById('cx-submit-btn');
+                submitBtn.disabled = false;
+                submitBtn.className = 'w-full bg-secondary-container text-on-secondary-container py-3 px-4 rounded font-label-md text-label-md hover:bg-secondary transition-all cursor-pointer';
+
+                const pdfBtn = document.getElementById('cx-export-pdf-btn');
+                pdfBtn.disabled = false;
+                pdfBtn.className = 'flex items-center gap-2 px-4 py-2 bg-surface-container-high border border-outline-variant rounded hover:bg-surface-container-highest transition-colors font-label-sm text-label-sm text-primary cursor-pointer';
+
+                // Add step to terminal logs
+                appendCxStepToTerminal(data.first_step);
+
+                // Start Session Clock
+                if (cxTimerInterval) clearInterval(cxTimerInterval);
+                cxTimerSeconds = 0;
+                cxTimerInterval = setInterval(() => {
+                    cxTimerSeconds++;
+                    const h = Math.floor(cxTimerSeconds / 3600).toString().padStart(2, '0');
+                    const m = Math.floor((cxTimerSeconds % 3600) / 60).toString().padStart(2, '0');
+                    const s = (cxTimerSeconds % 60).toString().padStart(2, '0');
+                    document.getElementById('session-timer').textContent = `${h}:${m}:${s}`;
+                }, 1000);
+            } else {
+                alert("Failed to initialize commissioning copilot.");
+            }
+        } catch (err) {
+            console.error("Cx start error", err);
+        }
+    }
+
+    function appendCxStepToTerminal(step) {
+        const terminal = document.getElementById('cx-terminal-log');
+        const div = document.createElement('div');
+        div.className = 'border-l-2 border-primary pl-4 py-2 bg-primary/5 text-sm space-y-2';
+        
+        let procList = Array.isArray(step.procedure) ? step.procedure.map(p => `<p>&gt; ${p}</p>`).join('') : `<p>&gt; ${step.procedure}</p>`;
+        let safetyList = Array.isArray(step.safety_precautions) ? step.safety_precautions.map(s => `<p class="text-error flex items-center gap-1"><span class="material-symbols-outlined text-xs">warning</span> ${s}</p>`).join('') : '';
+
+        div.innerHTML = `
+            <div class="text-primary font-bold">TASK ${step.step_number || 1}: ${step.test_name || 'Verification Step'}</div>
+            <div class="text-on-surface space-y-1">
+                ${procList}
+                <p class="text-on-surface-variant font-bold mt-2">&gt; Expected range: ${step.expected_range || 'Not specified'}</p>
+                ${safetyList}
+            </div>
+        `;
+        terminal.appendChild(div);
+        terminal.scrollTop = terminal.scrollHeight;
+    }
+
+    async function submitCxMeasurement() {
+        if (!activeCxSessionId) return;
+        const val = document.getElementById('cx-measured-val').value;
+        const notes = document.getElementById('cx-notes-val').value;
+
+        if (!val) {
+            alert("Please enter a measured value.");
+            return;
+        }
+
+        const terminal = document.getElementById('cx-terminal-log');
+        
+        const log = document.createElement('div');
+        log.className = 'text-on-surface-variant text-xs';
+        log.innerHTML = `<span class="text-primary">[DATA]</span> Submitting field measurement: ${val}...`;
+        terminal.appendChild(log);
+        terminal.scrollTop = terminal.scrollHeight;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/commissioning/submit-result`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    session_id: activeCxSessionId,
+                    measured_value: val,
+                    notes: notes,
+                    stream: false
+                })
+            });
+
+            if (res.ok) {
+                const data = await res.json();
+                
+                // Print evaluation result
+                const evalDiv = document.createElement('div');
+                const isPass = data.status === 'pass';
+                evalDiv.className = isPass ? 'text-secondary bg-secondary/5 border-l-2 border-secondary p-3 text-xs' : 'text-error bg-error/5 border-l-2 border-error p-3 text-xs';
+                
+                evalDiv.innerHTML = `
+                    <p class="font-bold">[EVAL] Result: ${data.status.toUpperCase()}</p>
+                    <p>${data.evaluation || ''}</p>
+                    ${data.corrective_action ? `<p class="mt-1 font-bold text-error">Corrective: ${data.corrective_action}</p>` : ''}
+                `;
+                terminal.appendChild(evalDiv);
+
+                // Save step record to SQLite
+                await fetch(`${API_BASE}/api/commissioning/save-record`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        session_id: activeCxSessionId,
+                        step_number: data.step_number || 1,
+                        procedure: data.procedure?.join('\n') || 'Verification',
+                        expected_range: data.expected_range,
+                        measured_value: parseFloat(val) || null,
+                        measured_value_text: val,
+                        result: data.status,
+                        notes: notes
+                    })
+                });
+
+                // Present next step or session completion
+                if (data.next_action && data.step_number) {
+                    appendCxStepToTerminal(data);
+                } else {
+                    const completeDiv = document.createElement('div');
+                    completeDiv.className = 'text-primary font-bold';
+                    completeDiv.textContent = '[SYS] Commissioning sequence completed successfully.';
+                    terminal.appendChild(completeDiv);
+                }
+
+                // Clear input fields
+                document.getElementById('cx-measured-val').value = '';
+                document.getElementById('cx-notes-val').value = '';
+                terminal.scrollTop = terminal.scrollHeight;
+                await refreshDashboardMetrics();
+            } else {
+                alert("Failed to submit measurement.");
+            }
+        } catch (err) {
+            console.error("Measurement submit error", err);
+        }
+    }
+
+    async function exportCxPDF() {
+        if (!activeCxSessionId) return;
+        window.open(`${API_BASE}/api/commissioning/export/${activeCxSessionId}`);
+    }
+
+    // 5. RFI Assistant Chat Services
+    async function sendRfiQuery() {
+        if (!activeProjectId) {
+            alert("Please create or select a project first");
+            return;
+        }
+        const input = document.getElementById('rfi-query-input');
+        const question = input.value.trim();
+        if (!question) return;
+
+        input.value = '';
+
+        const chatBox = document.getElementById('rfi-chat-messages');
+        
+        // Append user query
+        const userDiv = document.createElement('div');
+        userDiv.className = 'flex justify-end';
+        userDiv.innerHTML = `
+            <div class="max-w-[80%] p-4 bg-surface-container-highest rounded-xl rounded-tr-none border border-outline-variant">
+                <p class="text-on-surface font-body-md">${question}</p>
+                <div class="mt-2 text-right text-on-surface-variant font-label-sm text-[10px]">${new Date().toLocaleTimeString()}</div>
+            </div>
+        `;
+        chatBox.appendChild(userDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        // Loading bubble
+        const loadDiv = document.createElement('div');
+        loadDiv.className = 'flex justify-start';
+        loadDiv.innerHTML = `
+            <div class="max-w-[80%] flex gap-4">
+                <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                    <span class="material-symbols-outlined text-primary">smart_toy</span>
+                </div>
+                <div class="p-5 glass-card rounded-2xl rounded-tl-none">
+                    <span class="w-2 h-2 rounded-full bg-primary animate-ping inline-block"></span> Retrieving specs and generating answer...
+                </div>
+            </div>
+        `;
+        chatBox.appendChild(loadDiv);
+        chatBox.scrollTop = chatBox.scrollHeight;
+
+        try {
+            const res = await fetch(`${API_BASE}/api/rfi/ask`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    question: question,
+                    project_id: activeProjectId
+                })
+            });
+
+            chatBox.removeChild(loadDiv);
+
+            if (res.ok) {
+                const data = await res.json();
+                
+                // Append AI answer
+                const aiDiv = document.createElement('div');
+                aiDiv.className = 'flex justify-start';
+                aiDiv.innerHTML = `
+                    <div class="max-w-[80%] flex gap-4">
+                        <div class="w-10 h-10 rounded-full bg-primary/10 flex items-center justify-center shrink-0">
+                            <span class="material-symbols-outlined text-primary">smart_toy</span>
+                        </div>
+                        <div class="p-5 glass-card rounded-2xl rounded-tl-none w-full">
+                            <p class="text-on-surface">${data.answer}</p>
+                        </div>
+                    </div>
+                `;
+                chatBox.appendChild(aiDiv);
+
+                // Show citations
+                const dock = document.getElementById('rfi-citations-dock');
+                const list = document.getElementById('rfi-citations-list');
+                list.innerHTML = '';
+                
+                if (data.citations && data.citations.length > 0) {
+                    dock.classList.remove('hidden');
+                    data.citations.forEach(c => {
+                        const item = document.createElement('div');
+                        item.className = 'p-3 bg-surface-container-low border border-outline-variant rounded-lg hover:border-primary/50 transition-all';
+                        item.innerHTML = `
+                            <div class="flex items-center justify-between mb-2 text-xs">
+                                <span class="text-primary font-bold flex items-center gap-1">
+                                    <span class="material-symbols-outlined text-xs">picture_as_pdf</span> ${c.source || 'Standard'}
+                                </span>
+                                <span class="text-on-surface-variant">p. ${c.page || 'N/A'}</span>
+                            </div>
+                            <p class="text-on-surface-variant text-[11px] italic">"${c.relevant_text || ''}"</p>
+                        `;
+                        list.appendChild(item);
+                    });
+                } else {
+                    dock.classList.add('hidden');
+                }
+            } else {
+                alert("Failed to get RFI response.");
+            }
+        } catch (err) {
+            console.error("RFI assist error", err);
+            chatBox.removeChild(loadDiv);
+        }
+        chatBox.scrollTop = chatBox.scrollHeight;
+    }
+
+    // 6. Schedule Risk Services
+    async function handleScheduleUpload(input) {
+        if (!input.files || !input.files[0]) return;
+        const file = input.files[0];
+        document.getElementById('schedule-filename-label').textContent = file.name;
+
+        const reader = new FileReader();
+        reader.onload = async (e) => {
+            try {
+                const scheduleData = JSON.parse(e.target.result);
+                document.getElementById('schedule-health-label').textContent = 'Analyzing...';
+                
+                const res = await fetch(`${API_BASE}/api/schedule/analyse`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ schedule_data: scheduleData })
+                });
+
+                if (res.ok) {
+                    const data = await res.json();
+                    
+                    // Render CPM health
+                    const health = data.schedule_health || 'unknown';
+                    const hLabel = document.getElementById('schedule-health-label');
+                    hLabel.textContent = health.toUpperCase();
+                    hLabel.className = `font-display text-3xl font-bold leading-tight ${health === 'red' ? 'text-error' : health === 'yellow' ? 'text-yellow-400' : 'text-secondary'}`;
+                    
+                    document.getElementById('schedule-path-desc').innerHTML = `
+                        <p class="font-bold">${data.summary || ''}</p>
+                        <p class="text-xs mt-1 text-on-surface">${data.critical_path_status || ''}</p>
+                    `;
+
+                    // Render Risks Table
+                    const listSection = document.getElementById('schedule-results-section');
+                    listSection.classList.remove('hidden');
+                    
+                    const tableBody = document.getElementById('schedule-risks-table-body');
+                    tableBody.innerHTML = '';
+
+                    const risks = data.risks || [];
+                    if (risks.length > 0) {
+                        risks.forEach(r => {
+                            const tr = document.createElement('tr');
+                            tr.className = 'hover:bg-surface-container-highest transition-colors';
+                            
+                            const sevClass = r.severity === 'critical' || r.severity === 'high' ? 'bg-error/15 text-error border-error/30' : 'bg-yellow-400/15 text-yellow-300 border-yellow-400/30';
+                            
+                            tr.innerHTML = `
+                                <td class="px-6 py-4">
+                                    <div class="font-body-md text-on-surface">${r.activity}</div>
+                                    <div class="text-[11px] text-on-surface-variant">${r.description || ''}</div>
+                                </td>
+                                <td class="px-6 py-4 text-center">
+                                    <span class="px-2.5 py-0.5 rounded-full border text-xs ${sevClass}">${r.severity}</span>
+                                </td>
+                                <td class="px-6 py-4 text-center font-label-md font-bold text-error">${r.current_float_days ?? 'N/A'}</td>
+                                <td class="px-6 py-4 text-center font-label-md text-on-surface-variant">${r.impact_days ? r.impact_days + ' Days Delay' : 'Monitor'}</td>
+                            `;
+                            tableBody.appendChild(tr);
+                        });
+                    } else {
+                        tableBody.innerHTML = `
+                            <tr>
+                                <td colspan="4" class="px-6 py-8 text-center text-on-surface-variant">No critical risks identified in schedule.</td>
+                            </tr>
+                        `;
+                    }
+                } else {
+                    alert("Analysis error.");
+                }
+            } catch (err) {
+                console.error("Schedule parse error", err);
+                alert("Failed to parse JSON file.");
+            }
+        };
+        reader.readAsText(file);
+    }
 </script>
 </body>
 </html>

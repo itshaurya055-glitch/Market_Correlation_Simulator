@@ -1,7 +1,57 @@
 services:
   - type: web
-    name: market-correlation-simulator
-    runtime: static
-    buildCommand: "echo 'Deploying static site'"
-    staticPublishPath: .
-    autoDeployTrigger: commit
+    name: epc-intelligence
+    runtime: python
+    region: singapore   # closest to Mumbai — change to oregon/frankfurt if preferred
+    plan: starter       # upgrade to standard for more RAM (sentence-transformers is heavy)
+
+    buildCommand: |
+      pip install uv
+      uv sync --no-dev --frozen
+
+    startCommand: uv run uvicorn main:app --host 0.0.0.0 --port $PORT
+
+    # Persistent disk — keeps ChromaDB, SQLite, and uploaded PDFs across deploys
+    disk:
+      name: epc-data
+      mountPath: /data
+      sizeGB: 1         # increase if you index many large PDFs
+
+    envVars:
+      # ── Required secrets — set these in Render dashboard, NOT here ──
+      - key: GROQ_API_KEY
+        sync: false     # marks it as a secret — you'll enter the value in Render UI
+
+      # ── App config ──
+      - key: GROQ_MODEL
+        value: llama-3.3-70b-versatile
+
+      - key: CHROMA_DB_PATH
+        value: /data/chroma_db
+
+      - key: UPLOAD_DIR
+        value: /data/uploads
+
+      - key: STANDARDS_DIR
+        value: /data/standards
+
+      - key: TEST_RECORDS_DIR
+        value: /data/test_records
+
+      - key: DATABASE_URL
+        value: sqlite:////data/epc.db
+
+      - key: EMBEDDING_MODEL
+        value: all-MiniLM-L6-v2
+
+      - key: CHUNK_SIZE
+        value: 800
+
+      - key: CHUNK_OVERLAP
+        value: 100
+
+      - key: TOP_K_RETRIEVAL
+        value: 5
+
+      - key: PYTHON_VERSION
+        value: "3.11"

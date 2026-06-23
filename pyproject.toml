@@ -1,0 +1,32 @@
+[project]
+name = "epc-intelligence"
+version = "0.1.0"
+description = "EPC Intelligence Core — Spec Compliance Agent + Commissioning QA Copilot for data centre EPC projects"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = [
+    "fastapi>=0.111.0",
+    "uvicorn[standard]>=0.30.1",
+    "langchain>=0.2.12",
+    "langchain-groq>=0.1.9",
+    "langgraph>=0.1.19",
+    "langchain-community>=0.2.10",
+    "chromadb>=0.5.5",
+    "sentence-transformers>=3.0.1",
+    "PyMuPDF>=1.24.9",
+    "pdfplumber>=0.11.4",
+    "pytesseract>=0.3.13",
+    "sqlalchemy>=2.0.31",
+    "python-multipart>=0.0.9",
+    "python-dotenv>=1.0.1",
+    "pydantic>=2.8.2",
+    "pydantic-settings>=2.3.0",
+    "reportlab>=4.2.2",
+    "sse-starlette>=2.1.0",
+]
+
+[dependency-groups]
+dev = [
+    "pytest>=8.0.0",
+    "httpx>=0.27.0",
+]
